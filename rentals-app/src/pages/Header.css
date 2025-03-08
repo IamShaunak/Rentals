@@ -1,0 +1,50 @@
+/* src/components/Header.css */
+.header {
+  padding: 1rem 2rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%; /* Full width of the viewport */
+}
+
+.header-content {
+  width: 100%;
+  max-width: 1200px; /* Match the max-width of .main-content */
+  margin: 0 auto; /* Center the content within the header */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.header nav a {
+  margin: 0 0.5rem;
+  text-decoration: none;
+  color: #007bff;
+}
+
+.header nav a:hover {
+  text-decoration: underline;
+}
+
+.header nav span {
+  color: #666;
+}
+
+.logo-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.logo {
+  height: 40px; /* Adjust size as needed */
+  width: auto;
+}
