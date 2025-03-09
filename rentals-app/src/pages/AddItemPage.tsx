@@ -1,44 +1,47 @@
 // src/pages/AddItemPage.tsx
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import React, { useState, FormEvent } from 'react';
+import axios, { AxiosError, AxiosResponse } from 'axios';
 import './AddItemPage.css';
 
-const AddItemPage = () => {
-  const [formData, setFormData] = useState({
-    category: '',
-    name: '',
-    pricePerHour: '',
-  });
+// Define the API response type
+interface ApiResponse {
+  message: string;
+  rental?: {
+    _id: string;
+    entityName: string;
+    category: string;
+    itemName: string;
+    pricePerHour: number;
+    deliveryStatus: string;
+    createdAt: string;
+  };
+}
 
+const AddItemPage = () => {
+  const [category, setCategory] = useState('Drums');
+  const [itemName, setItemName] = useState('');
+  const [price, setPrice] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:5000/api/items', {
-        category: formData.category,
-        name: formData.name,
-        pricePerHour: parseFloat(formData.pricePerHour),
-      });
-      alert(response.data.message); // "Item added successfully"
-      navigate('/dashboard');
+      const response: AxiosResponse<ApiResponse> = await axios.post(
+        'http://localhost:5000/api/rentals',
+        { category, itemName, pricePerHour: price }, // Send all fields
+        { withCredentials: true }
+      );
+      alert(response.data.message);
+      setItemName('');
+      setPrice('');
     } catch (err) {
-      console.error('Error adding item:', err);
-      setError('Failed to add item. Please try again.');
+      const error = err as AxiosError<ApiResponse>;
+      console.error('Error adding item:', error.response?.status, error.response?.data, error.message);
+      setError(error.response?.data?.message || 'Failed to add item. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -48,52 +51,37 @@ const AddItemPage = () => {
     <div className="add-item-page">
       <h1>Add Item to Rent Out</h1>
       {error && <div className="error-message">{error}</div>}
-      <form onSubmit={handleSubmit} className="add-item-form">
+      <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="category">Category:</label>
-          <select
-            id="category"
-            name="category"
-            value={formData.category}
-            onChange={handleChange}
-            required
-          >
-            <option value="">Select a category</option>
-            <option value="drums">Drums</option>
-            <option value="guitars">Guitars</option>
-            <option value="keyboards">Keyboards</option>
-            <option value="equipment">Equipment</option>
-            <option value="others">Others</option>
+          <label>Category:</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="Drums">Drums</option>
+            <option value="Guitars">Guitars</option>
+            <option value="Keyboards">Keyboards</option>
+            <option value="Microphones">Microphones</option>
           </select>
         </div>
-
         <div className="form-group">
-          <label htmlFor="name">Name of the Item:</label>
+          <label>Name of the Item:</label>
           <input
             type="text"
-            id="name"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
+            value={itemName}
+            onChange={(e) => setItemName(e.target.value)}
             required
           />
         </div>
-
         <div className="form-group">
-          <label htmlFor="pricePerHour">Price per Hour ($):</label>
+          <label>Price per Hour ($):</label>
           <input
             type="number"
-            id="pricePerHour"
-            name="pricePerHour"
-            value={formData.pricePerHour}
-            onChange={handleChange}
-            step="0.01"
-            min="0"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
             required
+            min="0"
+            step="0.01"
           />
         </div>
-
-        <button type="submit" className="submit-button" disabled={loading}>
+        <button type="submit" disabled={loading}>
           {loading ? 'Submitting...' : 'Submit'}
         </button>
       </form>
