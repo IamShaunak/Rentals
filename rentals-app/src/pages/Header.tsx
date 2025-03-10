@@ -9,7 +9,7 @@ const Header = () => {
       <div className="header-content">
         <div className="flex items-center">
           <Link to="/" className="logo-link">
-            <img src="/logo.png" alt="Logo" className="logo" />
+            <img src="assets/logo.png" alt="Logo" className="logo" />
           </Link>
           <h1>Musical Rentals</h1>
         </div>

@@ -78,7 +78,7 @@ const RentedPage = () => {
         </Link>
         {user && <p>Welcome, {user.entityName}!</p>}
       </div>
-      <h1>Rented Items Overview</h1>
+      <h1>{user.entityName}'s Rental DASHBOARD</h1>
       <div className="categories-container">
         {rentals.length === 0 ? (
           <p>No rented items found.</p>
