@@ -387,6 +387,46 @@ app.get('/api/customer-items', async (req, res) => {
   }
 });
 
+// Get custom categories for the logged-in user
+app.get('/api/custom-categories', async (req, res) => {
+  try {
+    if (!req.session.renterId) {
+      return res.status(401).json({ message: 'Unauthorized. Please log in.' });
+    }
+    const renter = await Renter.findById(req.session.renterId);
+    if (!renter) {
+      return res.status(404).json({ message: 'Renter not found.' });
+    }
+    res.status(200).json(renter.customCategories);
+  } catch (error) {
+    console.error('Error fetching custom categories:', error);
+    res.status(500).json({ message: 'Error fetching custom categories: ' + error.message });
+  }
+});
+
+// Update custom categories for the logged-in user
+app.put('/api/custom-categories', async (req, res) => {
+  try {
+    if (!req.session.renterId) {
+      return res.status(401).json({ message: 'Unauthorized. Please log in.' });
+    }
+    const { categories } = req.body;
+    if (!Array.isArray(categories)) {
+      return res.status(400).json({ message: 'Categories must be an array.' });
+    }
+    const renter = await Renter.findById(req.session.renterId);
+    if (!renter) {
+      return res.status(404).json({ message: 'Renter not found.' });
+    }
+    renter.customCategories = categories;
+    await renter.save();
+    res.status(200).json({ message: 'Categories updated successfully', categories: renter.customCategories });
+  } catch (error) {
+    console.error('Error updating custom categories:', error);
+    res.status(500).json({ message: 'Error updating custom categories: ' + error.message });
+  }
+});
+
 // Checkout Endpoint
 app.post('/api/rentals/checkout', async (req, res) => {
   try {

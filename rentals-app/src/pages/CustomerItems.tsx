@@ -95,11 +95,10 @@ const CustomerItems = () => {
                   </div>
                   <div className="item-details">
                     <h3>{item.modelNumber}</h3>
-                    <p>Category: {item.category}</p>
-                    <p>Brand: {item.brand}</p>
-                    <p>Stock: {item.stock} available</p>
-                    <p>Offered by: {item.entityName}</p>
-                    <p>Status: {item.deliveryStatus}</p>
+                  {/* <p><strong>Model No:</strong> {item.modelNumber}</p> */}
+                  {/* <p><strong>Catsegory:</strong> {item.category}</p> */}
+                  <p><strong>In Stock:</strong> {item.stock}</p>
+                    {/* <p>Status: {item.deliveryStatus}</p> */}
                     <button
                       className="select-button"
                       onClick={() => handleSelectItem(item)}
