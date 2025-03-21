@@ -1,77 +1,49 @@
-/* src/pages/RentedPage.css */
 .rented-page {
-    padding: 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-  
-  .categories-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-    margin-top: 2rem;
-    justify-content: center; /* Center the grid items horizontally */
-  }
-  
-  .category-card {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s;
-    width: 250px; /* Fixed width to ensure consistency */
-  }
-  
-  .category-card:hover {
-    transform: translateY(-5px);
-  }
-  
-  .category-card h2 {
-    margin: 0 0 1rem;
-    color: #333;
-  }
-  
-  .stats p {
-    margin: 0.5rem 0;
-    color: #666;
-  }
-  
-  .stats span {
-    font-weight: bold;
-    color: #000;
-  }
-  
-  .progress-bar {
-    width: 100%;
-    height: 8px;
-    background: #f0f0f0;
-    border-radius: 4px;
-    margin-top: 1rem;
-    overflow: hidden;
-  }
-  
-  .progress-fill {
-    height: 100%;
-    background: #4CAF50;
-    transition: width 0.3s ease-in-out;
-  }
+  padding: 20px;
+}
 
-  .add-item-button-container {
-    margin-bottom: 1.5rem;
-    text-align: right; /* Align button to the right */
-  }
-  
-  .add-item-button {
-    padding: 0.5rem 1rem;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s;
-  }
-  
-  .add-item-button:hover {
-    background-color: #45a049;
-  }
+.add-item-button-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.add-item-button {
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.category-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.category-card {
+  border: 1px solid #ddd;
+  padding: 15px;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.category-card:hover {
+  background-color: #e0e0e0;
+}
+
+.category-card h3 {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.error-message {
+  color: red;
+}

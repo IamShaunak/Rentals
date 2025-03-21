@@ -1,4 +1,3 @@
-// backend/server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,6 +8,7 @@ const MongoStore = require('connect-mongo');
 const amqp = require('amqplib');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
 dotenv.config();
 
@@ -23,6 +23,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Serve static files from the uploads directory
+app.use('/uploads', express.static('uploads'));
+
 // Multer Configuration for File Uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -32,22 +35,32 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${file.originalname}`);
   },
 });
-const upload = multer({
+
+// Multer File Filter for Images (JPEG and PNG)
+const fileFilter = (req, file, cb) => {
+  const fileTypes = /jpeg|jpg|png/;
+  const extname = fileTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = fileTypes.test(file.mimetype);
+  if (extname && mimetype) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Only JPEG and PNG files are allowed'));
+  }
+};
+
+// Multer Instance for Multiple File Uploads (for /api/rentals)
+const uploadMultiple = multer({
   storage,
-  fileFilter: (req, file, cb) => {
-    const fileTypes = /jpeg|jpg|png|pdf/;
-    const extname = fileTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = fileTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Only JPEG, PNG, and PDF files are allowed'));
-    }
-  },
-});
+  fileFilter,
+}).array('images', 3);
+
+// Multer Instance for Single File Upload (for /api/customer-info)
+const uploadSingle = multer({
+  storage,
+  fileFilter,
+}).single('aadharDocument');
 
 // Create Uploads Directory
-const fs = require('fs');
 if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
@@ -81,7 +94,7 @@ app.use(
       maxAge: 1000 * 60 * 60 * 24, // 24 hours
       httpOnly: true,
       secure: false, // Set to false for local development (http)
-      sameSite: 'lax', // Ensure cookies are sent in cross-origin requests
+      sameSite: 'lax',
     },
   })
 );
@@ -98,13 +111,17 @@ const renterSchema = new mongoose.Schema({
 });
 const Renter = mongoose.model('Renter', renterSchema);
 
-// Updated Rental Schema to include category and pricePerHour
+// Updated Rental Schema
 const rentalSchema = new mongoose.Schema({
   entityName: { type: String, required: true },
   category: { type: String, required: true },
-  itemName: { type: String, required: true },
-  pricePerHour: { type: Number, required: true },
+  subcategory: { type: String }, // Optional
+  brand: { type: String, required: true },
+  modelNumber: { type: String, required: true },
+  stock: { type: Number, required: true, default: 1 },
+  rented: { type: Number, default: 0 },//Add rented field
   deliveryStatus: { type: String, default: 'Pending' },
+  imagePaths: [{ type: String }], // Array of image paths
   trackingId: { type: String },
   createdAt: { type: Date, default: Date.now },
 });
@@ -121,6 +138,23 @@ const customerSchema = new mongoose.Schema({
 });
 const Customer = mongoose.model('Customer', customerSchema);
 
+// Customer Rental Request Schema
+const rentalRequestSchema = new mongoose.Schema({
+  customerName: { type: String, required: true },
+  contactNumber: { type: String, required: true },
+  rentalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Rental', required: true },
+  itemName: { type: String, required: true }, // Should be modelNumber
+  entityName: { type: String, required: true },
+  quantity: { type: Number, required: true },
+  pricePerHour: { type: Number, required: true },
+  rentalDurationHours: { type: Number, required: true },
+  totalPrice: { type: Number, required: true },
+  identityDocumentPath: { type: String, required: true },
+  status: { type: String, default: 'Pending' },
+  createdAt: { type: Date, default: Date.now },
+});
+const RentalRequest = mongoose.model('RentalRequest', rentalRequestSchema);
+
 // RabbitMQ Connection
 let channel;
 async function connectRabbitMQ() {
@@ -136,43 +170,58 @@ async function connectRabbitMQ() {
 }
 connectRabbitMQ();
 
-// backend/server.js
-app.post('/api/rentals', async (req, res) => {
-  try {
-    if (!req.session.renterId) {
-      return res.status(401).json({ message: 'Unauthorized. Please log in.' });
-    }
-    const { category, itemName, pricePerHour } = req.body;
-    if (!category || !itemName || !pricePerHour) {
-      return res.status(400).json({ message: 'Category, item name, and price per hour are required' });
+// Add Rental Item Endpoint
+app.post('/api/rentals', (req, res) => {
+  uploadMultiple(req, res, async (err) => {
+    if (err) {
+      console.log('Multer error:', err.message);
+      return res.status(400).json({ message: err.message });
     }
 
-    const price = parseFloat(pricePerHour);
-    if (isNaN(price) || price <= 0) {
-      return res.status(400).json({ message: 'Price per hour must be a positive number' });
+    try {
+      console.log('Received request body:', req.body);
+      console.log('Received files:', req.files);
+      console.log('Session:', req.session);
+
+      if (!req.session.renterId) {
+        return res.status(401).json({ message: 'Unauthorized. Please log in.' });
+      }
+      const { category, subcategory, brand, modelNumber, stock } = req.body;
+      if (!category || !modelNumber || !stock || !brand) {
+        return res.status(400).json({ message: 'Category, model number, stock, and brand are required' });
+      }
+
+      const stockValue = parseInt(stock);
+      if (isNaN(stockValue) || stockValue <= 0) {
+        return res.status(400).json({ message: 'Stock must be a positive number' });
+      }
+
+      const imagePaths = req.files ? req.files.map((file) => file.path) : [];
+
+      const rental = new Rental({
+        entityName: req.session.entityName,
+        category,
+        subcategory: subcategory || undefined,
+        brand,
+        modelNumber,
+        stock: stockValue,
+        deliveryStatus: 'Pending',
+        imagePaths,
+      });
+      await rental.save();
+
+      if (channel) {
+        const msg = JSON.stringify({ rentalId: rental._id, modelNumber, status: 'Pending' });
+        channel.sendToQueue('delivery_tracking', Buffer.from(msg));
+        console.log('Sent message to RabbitMQ:', msg);
+      }
+
+      res.status(201).json({ message: 'Rental created successfully', rental });
+    } catch (error) {
+      console.error('Error creating rental:', error);
+      res.status(500).json({ message: 'Error creating rental: ' + error.message });
     }
-
-    const rental = new Rental({
-      entityName: req.session.entityName,
-      category,
-      itemName,
-      pricePerHour: price,
-      deliveryStatus: 'Pending',
-    });
-    await rental.save();
-
-    // Send message to RabbitMQ
-    if (channel) {
-      const msg = JSON.stringify({ rentalId: rental._id, itemName, status: 'Pending' });
-      channel.sendToQueue('delivery_tracking', Buffer.from(msg));
-      console.log('Sent message to RabbitMQ:', msg);
-    }
-
-    res.status(201).json({ message: 'Rental created successfully', rental });
-  } catch (error) {
-    console.error('Error creating rental:', error);
-    res.status(500).json({ message: 'Error creating rental: ' + error.message });
-  }
+  });
 });
 
 // Login Endpoint
@@ -231,8 +280,167 @@ app.get('/api/rentals', async (req, res) => {
   }
 });
 
+// Fetch Rentals by Category for Logged-in User
+app.get('/api/rentals/category/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    const validCategories = ['all', 'drums', 'guitars', 'keyboards', 'equipments', 'others'];
+
+    const normalizedCategory = category === 'all' ? null : category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+    if (normalizedCategory && !validCategories.includes(category.toLowerCase())) {
+      return res.status(400).json({ message: 'Invalid category' });
+    }
+
+    const query = {};
+    if (normalizedCategory) {
+      query.category = normalizedCategory;
+    }
+
+    const rentals = await Rental.find(query);
+    res.status(200).json(rentals); // Return plain array
+  } catch (error) {
+    console.error('Error fetching rentals by category:', error);
+    res.status(500).json({ message: 'Error fetching rentals: ' + error.message });
+  }
+});
+
+app.get('/api/rentals/:id', async (req, res) => {
+  try {
+    if (!req.session.renterId) {
+      return res.status(401).json({ message: 'Unauthorized. Please log in.' });
+    }
+    const rental = await Rental.findById(req.params.id);
+    if (!rental) {
+      return res.status(404).json({ message: 'Rental not found' });
+    }
+    if (rental.entityName !== req.session.entityName) {
+      return res.status(403).json({ message: 'Unauthorized to view this rental' });
+    }
+    res.status(200).json(rental);
+  } catch (error) {
+    console.error('Error fetching rental:', error);
+    res.status(500).json({ message: 'Error fetching rental: ' + error.message });
+  }
+});
+
+app.put('/api/rentals/:id', (req, res) => {
+  uploadMultiple(req, res, async (err) => {
+    if (err) {
+      console.log('Multer error:', err.message);
+      return res.status(400).json({ message: err.message });
+    }
+
+    try {
+      console.log('Received request body for update:', req.body);
+      console.log('Received files for update:', req.files);
+
+      if (!req.session.renterId) {
+        return res.status(401).json({ message: 'Unauthorized. Please log in.' });
+      }
+
+      const { category, subcategory, brand, modelNumber, stock } = req.body;
+      if (!category || !modelNumber || !stock || !brand) {
+        return res.status(400).json({ message: 'Category, model number, stock, and brand are required' });
+      }
+
+      const stockValue = parseInt(stock);
+      if (isNaN(stockValue) || stockValue <= 0) {
+        return res.status(400).json({ message: 'Stock must be a positive number' });
+      }
+
+      const rental = await Rental.findById(req.params.id);
+      if (!rental) {
+        return res.status(404).json({ message: 'Rental not found' });
+      }
+
+      if (rental.entityName !== req.session.entityName) {
+        return res.status(403).json({ message: 'Unauthorized to edit this rental' });
+      }
+
+      const imagePaths = req.files ? req.files.map((file) => file.path) : rental.imagePaths;
+
+      rental.category = category;
+      rental.subcategory = subcategory || undefined;
+      rental.brand = brand;
+      rental.modelNumber = modelNumber;
+      rental.stock = stockValue;
+      rental.imagePaths = imagePaths;
+      await rental.save();
+
+      res.status(200).json({ message: 'Rental updated successfully', rental });
+    } catch (error) {
+      console.error('Error updating rental:', error);
+      res.status(500).json({ message: 'Error updating rental: ' + error.message });
+    }
+  });
+});
+
+// customer-items ENDPOINT
+app.get('/api/customer-items', async (req, res) => {
+  try {
+    // Example: Return some public data (e.g., available rentals)
+    const publicRentals = await Rental.find({ deliveryStatus: 'Pending' }, { modelNumber: 1, category: 1, stock: 1 });
+    res.status(200).json(publicRentals);
+  } catch (error) {
+    console.error('Error fetching customer items:', error);
+    res.status(500).json({ message: 'Error fetching customer items: ' + error.message });
+  }
+});
+
+// Checkout Endpoint
+app.post('/api/rentals/checkout', async (req, res) => {
+  try {
+    const { rentalId, customerName, rentalDurationHours } = req.body;
+
+    if (!rentalId || !customerName || !rentalDurationHours) {
+      return res.status(400).json({ message: 'Rental ID, customer name, and rental duration are required' });
+    }
+
+    const rental = await Rental.findById(rentalId);
+    if (!rental) {
+      return res.status(404).json({ message: 'Rental item not found' });
+    }
+
+    const totalPrice = rental.pricePerHour * parseInt(rentalDurationHours);
+    if (isNaN(totalPrice) || totalPrice <= 0) {
+      return res.status(400).json({ message: 'Invalid rental duration' });
+    }
+
+    const rentalRequest = new RentalRequest({
+      customerName,
+      rentalId,
+      itemName: rental.modelNumber,
+      entityName: rental.entityName,
+      quantity: 1,
+      pricePerHour: rental.pricePerHour,
+      rentalDurationHours: parseInt(rentalDurationHours),
+      totalPrice,
+      status: 'Pending',
+    });
+    await rentalRequest.save();
+
+    rental.deliveryStatus = 'Requested';
+    await rental.save();
+
+    if (channel) {
+      const msg = JSON.stringify({
+        rentalRequestId: rentalRequest._id,
+        itemName: rental.modelNumber,
+        status: 'Requested',
+      });
+      channel.sendToQueue('delivery_tracking', Buffer.from(msg));
+      console.log('Sent message to RabbitMQ:', msg);
+    }
+
+    res.status(201).json({ message: 'Rental request submitted successfully', rentalRequest });
+  } catch (error) {
+    console.error('Error during checkout:', error);
+    res.status(500).json({ message: 'Error during checkout: ' + error.message });
+  }
+});
+
 // Customer Info Endpoint
-app.post('/api/customer-info', upload.single('aadharDocument'), async (req, res) => {
+app.post('/api/customer-info', uploadSingle, async (req, res) => {
   try {
     if (!req.session.renterId) {
       return res.status(401).json({ message: 'Unauthorized. Please log in.' });

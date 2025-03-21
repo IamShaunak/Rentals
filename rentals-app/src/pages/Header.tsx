@@ -2,6 +2,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import './Header.css';
+import logo from '../assets/logo.png';
+
 
 const Header = () => {
   return (
@@ -9,9 +11,9 @@ const Header = () => {
       <div className="header-content">
         <div className="flex items-center">
           <Link to="/" className="logo-link">
-            <img src="assets/logo.png" alt="Logo" className="logo" />
+          <img src={logo} alt="Logo" className="logo" />
           </Link>
-          <h1>Musical Rentals</h1>
+          <h1>Rentals by Gigsaw</h1>
         </div>
         <nav>
           <Link to="/dashboard">Dashboard</Link>
